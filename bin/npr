@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import subprocess
+import argparse
+
+"""
+npr is an NPd Runner
+
+Run commands in the npd project directory (https://github.com/DSACMS/npd)
+"""
+
+EPILOG_TEXT = """
+examples:
+  %(prog)s python manage.py migrate
+    Run Django migrations in the django-web service
+    
+  %(prog)s -e PGPASSWORD=postgres -s db psql -U postgres -h db
+    Connect to PostgreSQL database in the db service
+    
+  %(prog)s -e DEBUG=1 python manage.py runserver
+    Run Django development server with DEBUG environment variable
+    
+  %(prog)s --test python manage.py test
+    Run Django tests using the backend/compose.test.yml configuration
+    
+  %(prog)s npm install
+    Install npm packages in the web service container
+    
+  %(prog)s -s django-web -e DJANGO_SETTINGS_MODULE=app.settings.test python manage.py shell
+    Open Django shell with custom settings and environment variable
+    
+  %(prog)s make build
+    Run make build command on the host (backend directory)
+    
+  %(prog)s migrate
+    Run database migrations using the db-migrations service
+    
+  %(prog)s make migrate
+    Run database migrations using the backend make migrate command on host
+    
+  %(prog)s --debug -s web npm run dev
+    Run npm dev script with debug output enabled
+"""
+
+
+def determine_service(command: str) -> str:
+    """
+    Determine the appropriate Docker service or run on host based on the
+    command name.
+    """
+    if not command:
+        return None
+
+    first_arg = command[0].lower()
+
+    backend_host_shell_commands = ["make"]
+    if first_arg in backend_host_shell_commands:
+        # when running a host command, return `host:$folder`
+        return "host:backend"
+
+    # Python-related commands go to django-web
+    python_commands = ["python", "python3", "pip", "pip3", "django-admin", "manage.py"]
+    if first_arg in python_commands or first_arg.startswith("python"):
+        return "django-web"
+
+    database_commands = ["psql", "pg_dump"]
+    if first_arg in database_commands:
+        return "db"
+
+    flyway_commands = ["migrate", "info"]
+    if first_arg in flyway_commands:
+        return "db-migrations"
+
+    # npm commands go to web
+    if first_arg == "npm":
+        return "web"
+
+    return "web"
+
+
+def dprint(*msg: list[str]):
+    sys.stderr.write(f"\033[2m> {' '.join(str(m) for m in msg)}\033[0m\n")
+
+
+def argument_parser() -> argparse.ArgumentParser:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        add_help=True,
+        epilog=EPILOG_TEXT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Docker Compose service runner - automatically determines the appropriate service for your command",
+    )
+
+    parser.add_argument("-s", "--service", dest="service", help="Specify service name")
+    parser.add_argument(
+        "-e", action="append", dest="env_vars", help="Environment variables"
+    )
+    parser.add_argument(
+        "-t",
+        "--test",
+        action="store_true",
+        default=False,
+        help="Use backend/compose.test.yml compose file",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", default=False, help="Show verbose debug output"
+    )
+    # after all known options have been parsed, expect a command with its own arguments
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="command to pass on to docker or the shell")
+
+    return parser
+
+
+def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
+    parser = argument_parser()
+
+    # Parse known args to separate our options from the command
+    known_args, _ = parser.parse_known_args()
+
+    return known_args, known_args.command
+
+
+def main():
+    if len(sys.argv) < 2:
+        parser = argument_parser()
+        parser.print_help()
+
+        sys.exit(1)
+
+    # Parse arguments
+    known_args, command_args = parse_arguments()
+
+    if known_args.debug:
+        dprint("args:", known_args)
+        dprint("command:", command_args)
+        dprint("rest:", known_args.rest)
+
+    # Determine service
+    if known_args.service:
+        service = known_args.service
+    else:
+        service = determine_service(command_args)
+        if not service:
+            print("Error: Could not determine appropriate service")
+            sys.exit(1)
+
+        if known_args.debug:
+            dprint("service:", service)
+
+    # Build runnable command
+    dir = os.getcwd()
+    on_host = False
+    run_env = {}
+
+    if service.startswith("host"):
+        _, dir = service.split(":")
+        on_host = True
+        run_cmd = []
+    else:
+        run_cmd = [
+            "docker",
+            "compose",
+        ]
+
+    # Add optional test configuration
+    if not on_host and service == "django-web" and known_args.test:
+        run_cmd.extend(("-f", "backend/docker-compose.yml"))
+        run_cmd.extend(("-f", "backend/compose.test.yml"))
+
+    if not on_host:
+        run_cmd.extend(("run", "--rm"))
+
+    # Add environment variables
+    if known_args.env_vars:
+        if not on_host:
+            for env_var in known_args.env_vars:
+                run_cmd.extend(["-e", env_var])
+        else:
+            for env_var in known_args.env_vars:
+                key, value = env_var.split("=", 1)
+                run_env[key] = value
+
+    # Add service name
+    if not on_host:
+        run_cmd.append(service)
+
+    # Add the actual command
+    run_cmd.extend(command_args)
+
+    # Execute the command
+    try:
+        dprint(*run_cmd)
+        result = subprocess.run(run_cmd, cwd=dir)
+        sys.exit(result.returncode)
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except Exception as e:
+        print(f"Error executing command: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

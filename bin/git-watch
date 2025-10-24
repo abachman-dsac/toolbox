@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# usage: 
+#  
+#   git watch
+#
+# opens a live monitor on the current branch's PR checks
+
+gh pr checks --watch

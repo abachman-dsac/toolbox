@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+#
+# on a mac? use this to generate garbage password strings
+# 
+
+ws=open('/usr/share/dict/words').readlines.select {|w|
+  /^[a-z]{5,7}\b/ =~ w
+}.map(&:strip)
+
+def n
+  (rand() * 89 + 10).floor.to_s
+end
+
+
+CHARS = '!@#$%^&*(){}[]-_=+;:?/.,<>|'.chars
+def s
+  CHARS.sample
+end
+
+100.times {
+  puts ws.sample(6).map {|w| w + n + s}.join()
+}

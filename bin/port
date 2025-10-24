@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# usage: port 5432
+# 
+# show what process is listening on a given port.
+
+echo
+echo -e "who is on port \033[34;1m$1\033[0m"
+echo
+lsof -i -P | grep LISTEN | grep :$1

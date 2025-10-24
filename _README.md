@@ -1,13 +1,8 @@
-# toolbox
+some helper scripts i use
 
-some helper scripts i use in my work at [DSAC](https://github.com/DSACMS).
-
-## setup 
 put them in a bin/ folder that's somewhere on your system path. 
 
-e.g., `git clone ... toolbox; cd toolbox; echo "export PATH=\"$(pwd)/bin:\$PATH\"" >> ~/.zshrc`
-
-## explanation
+e.g., `git clone ... helper-bin; echo "export PATH=\"$(pwd)/helper-bin:$$PATH\"" >> ~/.zshrc`
 
 - `npr`: runs developer commands in the [NPD](https://github.com/DSACMS/npd) project without having to cd around between root, `backend/`, and `frontend/`
 - `git pr`: open browser to the appropriate PR for the given project branch

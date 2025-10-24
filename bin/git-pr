@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# usage:
+#
+#   git pr
+#
+# go to the current branch's PR on GitHub in a browser, if one exists
+#
+# i am very lazy
+
+gh pr view --web

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+scratch="$( ( [[ -d \"$PWD/tmp\" ]] && echo $PWD/tmp ) || echo $PWD/scratch )"
+sbin="$scratch/bin"
+
+if [ $# -eq 0 ]; then
+  # no arguments given
+  if [[ -d "$sbin" ]] ; then
+    if [[ ":$PATH:" == *":$sbin:"* ]]; then
+      echo "adding $sbin to PATH"
+      export PATH="$sbin:$PATH"
+    else
+      echo "$sbin is in PATH"
+    fi 
+    exit 0
+  else
+    echo "$sbin not found"
+    exit 1
+  fi
+fi
+
+# call named command
+command=$1
+scratchcmd="$scratch/bin/$command"
+
+set -e
+
+if [[ ! -f "$scratchcmd" ]]; then
+  echo "$scratchcmd does not exist! creating..."
+  set -x
+  touch "$scratchcmd"
+  chmod +x "$scratchcmd"
+  set +x 
+elif [[ ! -x "$scratchcmd" ]]; then
+  chmod +x "$scratchcmd"
+fi
+
+shift
+
+set -x
+exec "$scratchcmd" "$@"

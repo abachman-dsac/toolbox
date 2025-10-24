@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+# presents a fuzzy search over the currently available local branches.
+#
+# switches to whatever you pick. 
+#
+# usage:
+#   git select
+#   
+# output:
+#   > Filter...
+#   • NDH-297-app-auth
+#   sjp/practitioner-role-endpoint
+#   main
+#   NDH-296-frontend-content-management
+#   sachin/ndh-295
+#   NDH-301-frontend-dependencies-in-docker
+#   NDH-304-trailing-slashes
+#   PR-120-review
+#   sachin/identiferSwap
+#
+# requires gum and gh:
+#   brew install gum
+#   brew install gh
+
+
+blue=$(tput setaf 4)
+none=$(tput sgr0)
+
+branches=$(git for-each-ref --count=30 --sort=-committerdate --format='%(refname:short)' refs/heads/)
+branch=$(echo "$branches" | gum filter)
+selected=$(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
+
+echo -e "switching to branch: ${blud}${selected}${none}"
+
+git switch $selected
+
