@@ -15,37 +15,37 @@ EPILOG_TEXT = """
 examples:
   %(prog)s make [COMMAND]
     Run backend make command on host
-    
+
   %(prog)s --test python manage.py test
     Run Django tests using the backend/compose.test.yml configuration
-    
+
   %(prog)s npm test
     Run frontend tests
-    
+
   %(prog)s make tests
     Run backend tests via make
-    
+
   %(prog)s -t python manage.py test
     Run backend tests directly with backend/compose.test.yml configuration
 
   %(prog)s --test python manage.py test npdfhir
     Run Django tests for just the npdfhir/ app
-    
+
   %(prog)s npm install
     Install npm packages in the web service container
-    
+
   %(prog)s npm install --save react-whatever
     Add an npm package to the frontend project
-    
+
   %(prog)s -e DJANGO_SETTINGS_MODULE=app.settings.test python manage.py shell
     Open Django shell with custom settings
-    
+
   %(prog)s migrate
     Run database migrations using the db-migrations service
-    
+
   %(prog)s make migrate
     Run database migrations using the backend make migrate command on host
-    
+
   %(prog)s -e PGPASSWORD=postgres -s db psql -U postgres -h db
     Connect to PostgreSQL database in the db service and default user/pass
 
