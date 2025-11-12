@@ -11,7 +11,9 @@ if [ $# -eq 0 ]; then
       export PATH="$sbin:$PATH"
     else
       echo "$sbin is in PATH"
-    fi 
+    fi
+    echo "available scripts:"
+    ls $sbin
     exit 0
   else
     echo "$sbin not found"
@@ -21,16 +23,30 @@ fi
 
 # call named command
 command=$1
+# ensure command doesn't have a trailing space
+command=$(echo "$command" | tr -d '[:space:]')
 scratchcmd="$scratch/bin/$command"
 
 set -e
 
 if [[ ! -f "$scratchcmd" ]]; then
-  echo "$scratchcmd does not exist! creating..."
-  set -x
-  touch "$scratchcmd"
-  chmod +x "$scratchcmd"
-  set +x 
+  read -p "$scratchcmd does not exist, would you like to create it? [Y/n] " -n 1 -r REPLY
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+    # User pressed Y, y, or Enter (default Y), create a new script and open it
+    # in the default editor
+    printf "#!/usr/bin/env bash\n\necho changme" > "$scratchcmd"
+    chmod +x "$scratchcmd"
+    if [ ! -z "$EDITOR" ]; then
+      exec $EDITOR $scratchcmd
+    else
+      echo "created $scratchcmd"
+    fi
+  else
+    # User pressed N, n, or other
+    echo "Aborting."
+    exit 1
+  fi
 elif [[ ! -x "$scratchcmd" ]]; then
   chmod +x "$scratchcmd"
 fi
