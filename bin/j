@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+
+import os
+import subprocess
+import sys
+import argparse
+
+EPILOG_TEXT = """
+examples:
+    %(prog)s 123
+        prints and puts Markdown Jira link on system clipboard
+        => [Jira Ticket NDH-123](https://jiraent.cms.gov/browse/NDH-123)
+
+    %(prog)s --browse 123
+    %(prog)s -b 123
+        print, clipboard, and open the ticket link in your default browser
+
+    %(prog)s -p CLDSPT 123
+        use CLDSPT as the default jira project
+
+        alternatively, set JIRA_PROJECT in your shell env
+"""
+
+
+def argument_parser() -> argparse.ArgumentParser:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        add_help=True,
+        epilog=EPILOG_TEXT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="generate a Jira link for JIRA_PROJECT (default: NDH) and put it on your clipboard",
+    )
+
+    parser.add_argument(
+        "-p",
+        "--project",
+        dest="project",
+        help="Use the given Jira project code, overrides shell env JIRA_PROJECT. Default: NDH",
+        default=None,
+    )
+
+    parser.add_argument(
+        "-b",
+        "--browse",
+        dest="browse",
+        action="store_true",
+        help="Open browser to the appropriate ticket",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--raw",
+        dest="raw",
+        action="store_true",
+        help="Only print URL",
+    )
+
+    return parser
+
+
+def write_to_clipboard(output):
+    process = subprocess.Popen(
+        "pbcopy", env={"LANG": "en_US.UTF-8"}, stdin=subprocess.PIPE
+    )
+    process.communicate(output.encode("utf-8"))
+
+
+def main():
+    if len(sys.argv) < 2:
+        parser = argument_parser()
+        parser.print_help()
+
+        sys.exit(1)
+
+    parser = argument_parser()
+
+    # Parse known args to separate our options from the command
+    options, rest = parser.parse_known_args()
+    ticket_id = rest[0]
+
+    project = options.project if options.project else os.getenv("JIRA_PROJECT", "NDH")
+
+    if "-" in ticket_id:
+        ticket_id = ticket_id.split("-")[1]
+
+    url = f"https://jiraent.cms.gov/browse/{project}-{ticket_id}"
+    if options.raw:
+        output = url
+    else:
+        output = f"[Jira Ticket {project}-{ticket_id}]({url})"
+
+    print(output)
+    write_to_clipboard(output)
+
+    if options.browse:
+        print(f"opening {url} ...")
+        subprocess.run(["open", url])
+
+
+if __name__ == "__main__":
+    main()
