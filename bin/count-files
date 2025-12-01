@@ -1,0 +1,176 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import subprocess
+import re
+
+EXCLUDE = r".+/(\.venv|\.git|\.pytest_cache)/.+"
+
+
+class RegexAction(argparse.Action):
+    # compile parsed argument as regexp before storing as option
+    def __call__(self, _parser, namespace, values, _option_string=None):
+        setattr(namespace, self.dest, re.compile(values))
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        add_help=True,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Count files, words, lines, and characters in current directory",
+    )
+
+    parser.add_argument(
+        "-t",
+        "--type",
+        dest="filetype",
+        help="A file type string like .py (default), .md, .sql. Ignored when --all is used.",
+        default=".py",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="all",
+        help="Report on .py, sql, and .md",
+        default=False,
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        dest="format",
+        help="Outout format. Options: text (default), json, markdown / md",
+        default="plain",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        dest="verbose",
+        help="Show all file paths in addition to count",
+        default=False,
+    )
+    parser.add_argument(
+        "-e",
+        "--exclude",
+        dest="exclude",
+        help=f"Exclude directories matching regex. default: {EXCLUDE}",
+        action=RegexAction,
+        default=re.compile(EXCLUDE),
+    )
+
+    # Parse known args to separate our options from the command
+    known_args = parser.parse_known_args()
+
+    return known_args
+
+
+def count_lines_and_characters_in_file(path):
+    result = subprocess.run(["wc", path], capture_output=True)
+
+    #      825    3322   36532 ./some_big_python_script.py
+    return [int(n) for n in result.stdout.split()[:3]]
+
+
+def count_files_by_type(directory_path, filetype, options):
+    paths = []
+    words = 0
+    lines = 0
+    chars = 0
+    for root, _, files in os.walk(directory_path):
+        if options.exclude.match(root):
+            continue
+
+        for file in files:
+            if file.endswith(filetype):
+                paths.append(os.path.join(root, file))
+                _lines, _words, _chars = count_lines_and_characters_in_file(
+                    os.path.join(root, file)
+                )
+                words += _words
+                lines += _lines
+                chars += _chars
+
+    return (paths, words, lines, chars)
+
+
+options, rest = parse_arguments()
+# print("with options:", options)
+# print("        rest:", rest)
+
+if len(rest) > 0:
+    search_path = rest[0]
+else:
+    search_path = os.path.curdir
+
+results_by_type = {}
+
+if options.all:
+    totals = dict(
+        filetype="TOTAL",
+        count=0,
+        lines=0,
+        words=0,
+        chars=0,
+    )
+    for ft in (".py", ".sql", ".md"):
+        file_paths, words, lines, chars = count_files_by_type(search_path, ft, options)
+        totals["count"] += len(file_paths)
+        totals["lines"] += lines
+        totals["words"] += words
+        totals["chars"] += chars
+
+        results_by_type[ft] = dict(
+            filetype=ft,
+            files=file_paths,
+            count=len(file_paths),
+            lines=lines,
+            words=words,
+            chars=chars,
+        )
+    results_by_type["TOTAL"] = totals
+
+
+else:
+    file_paths, words, lines, chars = count_files_by_type(
+        search_path, options.filetype, options
+    )
+    results_by_type[options.filetype] = dict(
+        filetype=options.filetype,
+        files=file_paths,
+        count=len(file_paths),
+        lines=lines,
+        words=words,
+        chars=chars,
+    )
+
+
+if options.format == "plain":
+    for filetype, report in results_by_type.items():
+        if options.verbose:
+            for path in report["files"]:
+                print(path)
+            print("---")
+        print(f"{report['count']:12,} {filetype} files")
+        print(f"{report['lines']:12,} lines")
+        print(f"{report['words']:12,} words")
+        print(f"{report['chars']:12,} characters")
+        print("---")
+
+elif options.format == "json":
+    for filetype, report in results_by_type.items():
+        import json
+
+        if not options.verbose:
+            del report["files"]
+
+        print(json.dumps(report, indent=2))
+
+elif options.format == "markdown" or options.format == "md":
+    print("| filetype | files | lines | words | characters | token estimate |")
+    print("| --- | --- | --- | --- | --- | --- |")
+    for filetype, report in results_by_type.items():
+        token_estimate = int(report["chars"] / 4.0)
+        print(
+            f"| {filetype} | {report['count']} | {report['lines']:,} | {report['words']:,} | {report['chars']:,} | {token_estimate:,} |"
+        )
